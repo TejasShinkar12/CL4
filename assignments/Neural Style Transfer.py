@@ -1,41 +1,19 @@
-import tensorflow as tf
+import tensorflow as tf, numpy as np, random
 import tensorflow_hub as hub
-import numpy as np
-import matplotlib.pyplot as plt
 from PIL import Image
-import requests
-from io import BytesIO
 
-# Load the style transfer model from TensorFlow Hub
-hub_model = hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
+def stylize(content_path, style_path, max_dim=512):
+    def proc(p):
+        img = Image.open(p).convert('RGB')
+        scale = max_dim / max(img.size)
+        img = img.resize((int(img.width*scale), int(img.height*scale)), Image.LANCZOS)
+        t = tf.image.convert_image_dtype(np.array(img), tf.float32)[None]
+        return t
 
-# Function to load and preprocess image
-def load_image(image_url, img_size=(512, 512)):
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content)).convert('RGB')
-    img = img.resize(img_size, Image.Resampling.LANCZOS)
-    img = np.array(img) / 255.0
-    img = img[tf.newaxis, ...]
-    return tf.cast(img, tf.float32)
+    model = hub.load('https://tfhub.dev/google/magenta/arbitrary-image-stylization-v1-256/2')
+    out = model(proc(content_path), proc(style_path))[0][0]
+    out = (out*255).numpy().astype('uint8')
+    Image.fromarray(out).show()
 
-# URLs for content and style images
-content_image_url = 'https://raw.githubusercontent.com/tensorflow/docs/master/site/en/hub/tutorials/images/dog.jpg'
-style_image_url = 'https://raw.githubusercontent.com/tensorflow/docs/master/site/en/hub/tutorials/images/starry_night.jpg'
-
-# Load content and style images
-content_image = load_image(content_image_url)
-style_image = load_image(style_image_url)
-
-# Perform neural style transfer
-stylized_image = hub_model(tf.constant(content_image), tf.constant(style_image))[0]
-
-# Convert the stylized image to a displayable format
-stylized_image = np.clip(stylized_image[0].numpy(), 0, 1)
-
-# Save and display the result
-plt.figure(figsize=(10, 10))
-plt.imshow(stylized_image)
-plt.axis('off')
-plt.title('Stylized Image')
-plt.savefig('stylized_image.png')
-plt.close()
+# Usage:
+stylize('base.jpg', 'style.jpg')
